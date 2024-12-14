@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SAM Template for RDS instance in a VPC with proper networking'
+
+Resources:
+  # VPC with explicit DNS settings
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true      # Explicitly enable DNS support
+      EnableDnsHostnames: true    # Explicitly enable DNS hostnames
+      Tags:
+        - Key: Name
+          Value: MyPortfolioVPC
+
+  # Public Subnets in different AZs
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
+
+  # Internet Gateway
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyPortfolioIGW
+
+  MyGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  # Route Table for Public Subnets
+  MyPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  MyPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyGatewayAttachment
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  # Route Table Associations
+  MyPublicRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref MyPublicRouteTable
+
+  MyPublicRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref MyPublicRouteTable
+
+  # DB Subnet Group
+  MyDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS instance
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: MyRDSSubnetGroup
+
+  # Security Group for RDS
+  MyRDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0  # Consider restricting this to your IP
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 1024
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MyRDSSecurityGroup
+
+  # RDS Instance with explicit naming
+  MyRDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete  # Change to Retain if you want to keep the database after stack deletion
+    Properties:
+      DBInstanceIdentifier: my-portfolio-db  # This sets the actual instance name
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: '8.0.35'
+      AllocatedStorage: 20
+      DBName: MyPortfolioDB
+      MasterUsername: admin
+      MasterUserPassword: '{{resolve:ssm-secure:RDSMasterUserPassword:1}}'
+      VPCSecurityGroups:
+        - !Ref MyRDSSecurityGroup
+      DBSubnetGroupName: !Ref MyDBSubnetGroup
+      PubliclyAccessible: true
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      Port: 3306  # Explicitly set the port
+      Tags:
+        - Key: Name
+          Value: MyPortfolioRDS
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref MyVPC
+
+  PublicSubnet1:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+
+  RDSEndpoint:
+    Description: RDS Instance Endpoint
+    Value: !GetAtt MyRDSInstance.Endpoint.Address
+
+  RDSPort:
+    Description: RDS Instance Port
+    Value: !GetAtt MyRDSInstance.Endpoint.Port

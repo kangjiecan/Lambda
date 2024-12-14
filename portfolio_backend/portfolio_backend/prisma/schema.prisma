@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"] // Add compatibility for AWS Lambda
+}
+
+datasource db {
+  provider = "mysql" // Ensure this matches your RDS database engine
+  url      = env("DATABASE_URL") // Connection string from your cloud environment
+}
+
+model Post {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(255)
+  content   String?
+  date      DateTime  @default(now())
+  userId    Int       // Required field
+  label     String    @db.VarChar(100)
+}
+
+model Media {
+  id        Int       @id @default(autoincrement())
+  fileName  String    @db.VarChar(255)
+  fileType  String?   @db.VarChar(50)
+  date      DateTime  @default(now())
+  userId    Int       // Required field
+}
