@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  sam-app
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE'"
+      AllowHeaders: "'Content-Type,Authorization'"
+      AllowOrigin: "'*'"
+
+Resources:
+  getItemsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get-items.getItemsHandler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 30
+      Description: Handles GET operations for Posts, Media, and User data from DynamoDB tables
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: PostTable
+        - DynamoDBCrudPolicy:
+            TableName: MediaTable
+        - DynamoDBCrudPolicy:
+            TableName: UserTable
+      Environment:
+        Variables:
+          REGION: !Ref AWS::Region
+      Events:
+        GetItems:
+          Type: Api
+          Properties:
+            Path: /get
+            Method: GET
+
+  PostItemsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/post-items.handler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          REGION: !Ref AWS::Region
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: PostTable
+        - DynamoDBCrudPolicy:
+            TableName: MediaTable
+        - DynamoDBCrudPolicy:
+            TableName: UserTable
+      Events:
+        CreatePost:
+          Type: Api
+          Properties:
+            Path: /post
+            Method: POST
+        CreateMedia:
+          Type: Api
+          Properties:
+            Path: /media
+            Method: POST
+        EditPost:
+          Type: Api
+          Properties:
+            Path: /post/{postID}
+            Method: PUT
+        DeletePost:
+          Type: Api
+          Properties:
+            Path: /post/{postID}
+            Method: DELETE
+        DeleteMedia:
+          Type: Api
+          Properties:
+            Path: /media/{mediaID}
+            Method: DELETE
+
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UserTable
+      AttributeDefinitions:
+        - AttributeName: userID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userID
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  PostTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: PostTable
+      AttributeDefinitions:
+        - AttributeName: postID
+          AttributeType: S
+        - AttributeName: userID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: postID
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserPosts
+          KeySchema:
+            - AttributeName: userID
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  MediaTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: MediaTable
+      AttributeDefinitions:
+        - AttributeName: mediaID
+          AttributeType: S
+        - AttributeName: userID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: mediaID
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserMedia
+          KeySchema:
+            - AttributeName: userID
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+Outputs:
+  WebEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  UserTableName:
+    Description: Name of the User DynamoDB table
+    Value: !Ref UserTable
+  PostTableName:
+    Description: Name of the Post DynamoDB table
+    Value: !Ref PostTable
+  MediaTableName:
+    Description: Name of the Media DynamoDB table
+    Value: !Ref MediaTable
