@@ -5,8 +5,8 @@ codeuri = "/Users/kangjiecan/lambda/backend1/sam-app"
 runtime = "nodejs20.x"
 architecture = "x86_64"
 handler = "src/handlers/get-items.getItemsHandler"
-manifest_hash = "5477979593202aebf9fbe0f7dbd30a7e"
+manifest_hash = "a2ef0de2b7e35f1067e29bac1fa36036"
 packagetype = "Zip"
-functions = ["getItemsFunction", "PostItemsFunction"]
+functions = ["getItemsFunction", "exchangeJWTFunction", "PostItemsFunction"]
 
 [layer_build_definitions]

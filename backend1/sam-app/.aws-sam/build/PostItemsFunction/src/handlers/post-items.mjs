@@ -10,7 +10,7 @@ import {
 
 // Initialize DynamoDB client with correct configuration
 const endpoint = process.env.DYNAMODB_ENDPOINT;
-const region = process.env.REGION; // Initialize DynamoDB client
+const region = process.env.REGION;
 const client = new DynamoDBClient({
   endpoint,
   region,
@@ -65,8 +65,13 @@ const checkItemExists = async (tableName, key) => {
 
 // Create new post
 const createPost = async (postData) => {
-  const { postID, userID, content } = postData;
+  const { postID, userID, title, content } = postData;
   
+  // Validate required fields
+  if (!title) {
+    return createResponse(400, { message: 'Title is required' });
+  }
+
   // Check if post already exists
   const exists = await checkItemExists(TABLES.POST, { postID });
   if (exists) {
@@ -78,20 +83,88 @@ const createPost = async (postData) => {
     Item: {
       postID,
       userID,
+      title,
       content,
       createdAt: new Date().toISOString()
     }
   });
 
   await docClient.send(command);
-  return createResponse(201, { message: 'Post created successfully', postID });
+  return createResponse(201, { 
+    message: 'Post created successfully', 
+    postID,
+    title 
+  });
 };
 
-// Create new media
+// Edit post
+const editPost = async (postID, updateData) => {
+  try {
+    // Check if post exists
+    const exists = await checkItemExists(TABLES.POST, { postID });
+    if (!exists) {
+      return createResponse(404, { message: 'Post not found' });
+    }
+
+    const updateExpressions = [];
+    const expressionAttributeValues = {};
+
+    // Add title to update if provided
+    if (updateData.title !== undefined) {
+      updateExpressions.push('title = :title');
+      expressionAttributeValues[':title'] = updateData.title;
+    }
+
+    // Add content to update if provided
+    if (updateData.content !== undefined) {
+      updateExpressions.push('content = :content');
+      expressionAttributeValues[':content'] = updateData.content;
+    }
+
+    // Always update the updatedAt timestamp
+    updateExpressions.push('updatedAt = :updatedAt');
+    expressionAttributeValues[':updatedAt'] = new Date().toISOString();
+
+    const command = new UpdateCommand({
+      TableName: TABLES.POST,
+      Key: { postID },
+      UpdateExpression: `set ${updateExpressions.join(', ')}`,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW'
+    });
+
+    const response = await docClient.send(command);
+    return createResponse(200, { 
+      message: 'Post updated successfully', 
+      post: response.Attributes 
+    });
+  } catch (error) {
+    console.error('Error updating post:', error);
+    throw error;
+  }
+};
+
+// Delete post (unchanged)
+const deletePost = async (postID) => {
+  // Check if post exists
+  const exists = await checkItemExists(TABLES.POST, { postID });
+  if (!exists) {
+    return createResponse(404, { message: 'Post not found' });
+  }
+
+  const command = new DeleteCommand({
+    TableName: TABLES.POST,
+    Key: { postID }
+  });
+
+  await docClient.send(command);
+  return createResponse(200, { message: 'Post deleted successfully' });
+};
+
+// Media functions remain unchanged
 const createMedia = async (mediaData) => {
   const { mediaID, userID, type, url } = mediaData;
 
-  // Check if media already exists
   const exists = await checkItemExists(TABLES.MEDIA, { mediaID });
   if (exists) {
     return createResponse(409, { message: 'Media already exists' });
@@ -112,57 +185,7 @@ const createMedia = async (mediaData) => {
   return createResponse(201, { message: 'Media created successfully', mediaID });
 };
 
-// Edit post
-const editPost = async (postID, updateData) => {
-  try {
-    // Check if post exists
-    const exists = await checkItemExists(TABLES.POST, { postID });
-    if (!exists) {
-      return createResponse(404, { message: 'Post not found' });
-    }
-
-    const command = new UpdateCommand({
-      TableName: TABLES.POST,
-      Key: { postID },
-      UpdateExpression: 'set content = :content, updatedAt = :updatedAt',
-      ExpressionAttributeValues: {
-        ':content': updateData.content,
-        ':updatedAt': new Date().toISOString()
-      },
-      ReturnValues: 'ALL_NEW'
-    });
-
-    const response = await docClient.send(command);
-    return createResponse(200, { 
-      message: 'Post updated successfully', 
-      post: response.Attributes 
-    });
-  } catch (error) {
-    console.error('Error updating post:', error);
-    throw error;
-  }
-};
-
-// Delete post
-const deletePost = async (postID) => {
-  // Check if post exists
-  const exists = await checkItemExists(TABLES.POST, { postID });
-  if (!exists) {
-    return createResponse(404, { message: 'Post not found' });
-  }
-
-  const command = new DeleteCommand({
-    TableName: TABLES.POST,
-    Key: { postID }
-  });
-
-  await docClient.send(command);
-  return createResponse(200, { message: 'Post deleted successfully' });
-};
-
-// Delete media
 const deleteMedia = async (mediaID) => {
-  // Check if media exists
   const exists = await checkItemExists(TABLES.MEDIA, { mediaID });
   if (!exists) {
     return createResponse(404, { message: 'Media not found' });

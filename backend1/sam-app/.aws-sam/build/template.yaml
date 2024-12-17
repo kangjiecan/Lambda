@@ -1,6 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: sam-app
 Transform: AWS::Serverless-2016-10-31
+Parameters:
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID
+  CognitoOAuthTokenEndpoint:
+    Type: String
+    Description: Cognito Domain OAuth2
 Globals:
   Function:
     Tracing: Active
@@ -51,6 +58,32 @@ Resources:
       CodeUri: getItemsFunction
     Metadata:
       SamResourceId: getItemsFunction
+  exchangeJWTFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/exchangeJWT.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 30
+      Description: Handles exchanging authorization code for JWT tokens
+      Environment:
+        Variables:
+          CognitoOAuthTokenEndpoint:
+            Ref: CognitoOAuthTokenEndpoint
+          COGNITO_CLIENT_ID:
+            Ref: CognitoClientId
+          REDIRECT_URI: http://localhost:5173
+      Events:
+        ExchangeToken:
+          Type: Api
+          Properties:
+            Path: /auth/token
+            Method: POST
+      CodeUri: exchangeJWTFunction
+    Metadata:
+      SamResourceId: exchangeJWTFunction
   PostItemsFunction:
     Type: AWS::Serverless::Function
     Properties:

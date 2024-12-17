@@ -21,6 +21,7 @@ s3_prefix = "myBackend"
 region = "ca-central-1"
 disable_rollback = true
 image_repositories = []
+parameter_overrides = "CognitoClientId=\"17nera0agngdv3rjtsg2f2oa0m\" CognitoOAuthTokenEndpoint=\"https://ca-central-1irvoyse4m.auth.ca-central-1.amazoncognito.com/oauth2/token\""
 
 [default.package.parameters]
 resolve_s3 = true
